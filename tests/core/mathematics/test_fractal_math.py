@@ -8,11 +8,13 @@ from fractal_blockchain.core.mathematics.fractal_math import (
     GENESIS_TRIAD_VERTICES, SIDE_LENGTH, HEIGHT,
     get_midpoint, subdivide_triangle,
     get_triangle_for_fractal_coord,
-    fractal_to_cartesian, cartesian_to_fractal, # Added cartesian_to_fractal
+    fractal_to_cartesian, cartesian_to_fractal,
     get_fractal_positions,
     get_parent, get_children, get_siblings,
     is_valid_fractal_coordinate,
-    is_valid_child_relationship, are_siblings
+    is_valid_child_relationship, are_siblings,
+    # Added new geometric helpers
+    distance_sq, distance, points_are_close, is_point_on_line_segment
 )
 
 class TestFractalMath(unittest.TestCase):
@@ -240,6 +242,56 @@ class TestFractalMath(unittest.TestCase):
         if coord_pgc01_d3:
             self.assertEqual(coord_pgc01_d3.depth, 3)
             self.assertEqual(coord_pgc01_d3.path, (0,1,3))
+
+    def test_distance_functions(self):
+        p1 = CartesianPoint(0,0)
+        p2 = CartesianPoint(3,4) # Distance 5
+        self.assertAlmostEqual(distance_sq(p1,p2), 25.0)
+        self.assertAlmostEqual(distance(p1,p2), 5.0)
+
+        p3 = CartesianPoint(1,1)
+        p4 = CartesianPoint(1,1)
+        self.assertAlmostEqual(distance_sq(p3,p4), 0.0)
+        self.assertAlmostEqual(distance(p3,p4), 0.0)
+
+    def test_points_are_close(self):
+        p1 = CartesianPoint(0,0)
+        p2 = CartesianPoint(1e-10, 1e-10)
+        p3 = CartesianPoint(0.1, 0.1)
+
+        self.assertTrue(points_are_close(p1,p1))
+        self.assertTrue(points_are_close(p1,p2, tolerance=1e-9))
+        self.assertFalse(points_are_close(p1,p3, tolerance=1e-9))
+        self.assertTrue(points_are_close(p1,p3, tolerance=0.2))
+
+
+    def test_is_point_on_line_segment(self):
+        a = CartesianPoint(0,0)
+        b = CartesianPoint(10,0)
+
+        # Points on the segment
+        self.assertTrue(is_point_on_line_segment(CartesianPoint(0,0), a, b)) # Endpoint a
+        self.assertTrue(is_point_on_line_segment(CartesianPoint(10,0), a, b)) # Endpoint b
+        self.assertTrue(is_point_on_line_segment(CartesianPoint(5,0), a, b)) # Middle
+
+        # Points on the line but outside segment
+        self.assertFalse(is_point_on_line_segment(CartesianPoint(-1,0), a, b)) # Beyond a
+        self.assertFalse(is_point_on_line_segment(CartesianPoint(11,0), a, b)) # Beyond b
+
+        # Points not collinear
+        self.assertFalse(is_point_on_line_segment(CartesianPoint(5,1), a, b))
+        self.assertFalse(is_point_on_line_segment(CartesianPoint(0,1e-8), a, b, tolerance=1e-9)) # Slightly off, outside tolerance for cross product
+        self.assertTrue(is_point_on_line_segment(CartesianPoint(0,1e-10), a, b, tolerance=1e-9)) # Slightly off, inside tolerance
+
+        # Vertical segment
+        c = CartesianPoint(0,10)
+        self.assertTrue(is_point_on_line_segment(CartesianPoint(0,5), a, c))
+        self.assertFalse(is_point_on_line_segment(CartesianPoint(0,15), a, c))
+        self.assertFalse(is_point_on_line_segment(CartesianPoint(1,5), a, c))
+
+        # Degenerate segment (a=b)
+        self.assertTrue(is_point_on_line_segment(a, a, a)) # Point is on the degenerate segment
+        self.assertFalse(is_point_on_line_segment(b,a,a)) # Point b is not on segment a-a (unless b=a)
 
 
     def test_get_fractal_positions(self):
