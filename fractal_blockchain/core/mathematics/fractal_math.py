@@ -453,3 +453,49 @@ if __name__ == '__main__':
 
     print("\nBasic implementation of Prompt 1 elements seems to be in place.")
     print("Further work: Robust cartesian_to_fractal, more geometry tests.")
+
+
+# --- Additional Geometric Helper Functions ---
+
+def distance_sq(p1: CartesianPoint, p2: CartesianPoint) -> float:
+    """Calculates the squared Euclidean distance between two points."""
+    return (p1.x - p2.x)**2 + (p1.y - p2.y)**2
+
+def distance(p1: CartesianPoint, p2: CartesianPoint) -> float:
+    """Calculates the Euclidean distance between two points."""
+    return math.sqrt(distance_sq(p1, p2))
+
+def is_point_on_line_segment(p: CartesianPoint, a: CartesianPoint, b: CartesianPoint, tolerance=1e-9) -> bool:
+    """
+    Checks if point p lies on the line segment 'ab'.
+    """
+    # If segment is degenerate (a point)
+    if points_are_close(a, b, tolerance):
+        return points_are_close(p, a, tolerance)
+
+    # Check for collinearity: cross product (P - A) x (B - A) should be ~0
+    # (p.y - a.y) * (b.x - a.x) - (p.x - a.x) * (b.y - a.y)
+    # Note: tolerance for cross_product might need to be scaled if coordinates are very large.
+    # For typical geometric ranges, a small absolute tolerance should be fine.
+    cross_product = (p.y - a.y) * (b.x - a.x) - (p.x - a.x) * (b.y - a.y)
+    if abs(cross_product) > tolerance:
+        return False # Not collinear
+
+    # Check if p's projection onto the line ab lies within the segment ab.
+    # This is done by checking if p is within the "range" of a and b using dot products.
+    # (p - a) . (b - a) must be >= 0
+    dot_product_pa_ba = (p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)
+    if dot_product_pa_ba < -tolerance: # p is "behind" a (allowing for small float errors)
+        return False
+
+    # (p - b) . (a - b) must be >= 0. This is equivalent to (p-a).(b-a) <= (b-a).(b-a)
+    # So, dot_product_pa_ba must be <= squared_length_ab
+    squared_length_ab = distance_sq(a, b) # distance_sq(a,b) will be > 0 here due to first check
+    if dot_product_pa_ba > squared_length_ab + tolerance: # p is "beyond" b (allowing for small float errors)
+        return False
+
+    return True
+
+def points_are_close(p1: CartesianPoint, p2: CartesianPoint, tolerance=1e-9) -> bool:
+    """Checks if two points are within a given tolerance of each other."""
+    return distance_sq(p1, p2) < tolerance**2

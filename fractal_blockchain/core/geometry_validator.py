@@ -242,42 +242,58 @@ def is_on_boundary(coord: AddressedFractalCoordinate, max_depth: int) -> bool:
     if coord.depth == 1 and coord.path == (0,) and max_depth == 0:
         return "DEBUG_FAILING_CASE_REACHED" # Unique string return
 
-    if not coord.is_solid_path(): # Voids are not typically on the "solid" boundary
+    # New implementation using geometric checks
+
+    # Import necessary math functions
+    from fractal_blockchain.core.mathematics.fractal_math import (
+        points_are_close, is_point_on_line_segment, GENESIS_TRIAD_VERTICES
+    )
+    # get_vertices_for_addressed_coord is already imported in this file.
+
+    tolerance = 1e-9 # Standard tolerance for geometric comparisons
+
+    # 1. Handle base cases
+    if not coord.is_solid_path():
         return False
-
-    # Check depth conditions relative to max_depth
-    if coord.depth < max_depth: # e.g. coord is d1p0 (depth 1), max_depth is 2
-        return False # Not on boundary if it's shallower than max_depth
-    if coord.depth > max_depth: # e.g. coord is d1p0 (depth 1), max_depth is 0
-        return False # Not on boundary if it's deeper than max_depth
-
-    # If we reach here, coord.depth == max_depth.
-
-    if coord.depth == 0: # Handles the case for Genesis at max_depth 0.
-        # (e.g., is_on_boundary(genesis_coord, 0) -> True)
+    if coord.depth != max_depth:
+        return False
+    if coord.depth == 0: # and max_depth is also 0 here
         return True
 
-    # Now, coord.depth == max_depth and coord.depth > 0.
-    # Path should exist due to AddressedFractalCoordinate constructor rules for depth > 0.
-    if not coord.path:
-        # This case should ideally be prevented by valid AddressedFractalCoordinate objects.
-        # If depth > 0, path must exist.
-        return False # Should not be reached with valid inputs.
+    # 2. Get Cartesian vertices of coord
+    coord_vertices = get_vertices_for_addressed_coord(coord)
+    if not coord_vertices: # Should not happen if coord is valid and solid
+        return False
+    v = list(coord_vertices) # Ensure it's a list v[0], v[1], v[2]
 
-    distinct_path_elements = set(coord.path)
+    # 3. Get Cartesian vertices of GENESIS_TRIAD_VERTICES
+    GV = list(GENESIS_TRIAD_VERTICES)
 
-    # The is_solid_path() check at the beginning ensures no '3' is in distinct_path_elements.
-    # So, no need to check `if 3 in distinct_path_elements:` again.
+    # 4. Vertex Coincidence Check
+    # Check if any vertex of 'coord' is one of the Genesis vertices.
+    # This means 'coord' is one of the three main corner triangles of the fractal.
+    for coord_v in v:
+        for genesis_v in GV:
+            if points_are_close(coord_v, genesis_v, tolerance):
+                return True # Coord shares a vertex with Genesis Triad - it's a corner.
 
-    num_distinct_solid_elements = len(distinct_path_elements)
+    # 5. Edge Collinearity/Overlap Check
+    # Define edges of coord and Genesis
+    coord_edges = [ (v[0],v[1]), (v[1],v[2]), (v[2],v[0]) ]
+    genesis_edges = [ (GV[0],GV[1]), (GV[1],GV[2]), (GV[2],GV[0]) ]
 
-    if num_distinct_solid_elements == 1: # Corner triangle, e.g., (0,0,0)
-        return True
-    if num_distinct_solid_elements == 2: # Edge triangle, e.g., (0,1,0,1)
-        return True
+    for ce_p1, ce_p2 in coord_edges: # For each edge of the small coordinate triangle
+        for ge_p1, ge_p2 in genesis_edges: # For each edge of the main Genesis triangle
+            # Check if both endpoints of the coord_edge lie on the current genesis_edge segment
+            if is_point_on_line_segment(ce_p1, ge_p1, ge_p2, tolerance) and \
+               is_point_on_line_segment(ce_p2, ge_p1, ge_p2, tolerance):
+                # This means the small edge ce_p1-ce_p2 is part of a main boundary edge.
+                # We also need to ensure they are not just single points unless it's a vertex match (covered above)
+                # If ce_p1 and ce_p2 are distinct (not points_are_close), then it's a line segment.
+                if not points_are_close(ce_p1, ce_p2, tolerance): # It's a non-degenerate edge
+                    return True # Found an edge of 'coord' that lies on a Genesis boundary edge.
 
-    # If num_distinct_solid_elements == 3 (e.g. (0,1,2)), it's an inner triangle.
-    # If num_distinct_solid_elements == 0 (empty path but depth > 0), it's invalid (caught by `if not coord.path`).
+    # 6. If none of the above, it's not on the boundary by these geometric checks.
     return False
 
 
